@@ -1,0 +1,20 @@
+aura_assistant/
+├── lib/
+│   ├── core/
+│   │   ├── config/
+│   │   ├── constants/
+│   │   └── services/
+│   ├── features/
+│   │   ├── voice_interface/
+│   │   ├── text_interface/
+│   │   ├── home_automation/
+│   │   └── natural_language/
+│   ├── shared/
+│   │   ├── models/
+│   │   ├── widgets/
+│   │   └── utils/
+│   └── main.dart
+├── assets/
+│   ├── wake_words/
+│   └── sounds/
+└── test/
