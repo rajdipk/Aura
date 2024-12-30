@@ -1,41 +1,74 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'nlp_service.dart';
 
-class CommandProcessor {
-  final NLPService _nlpService;
-
-  CommandProcessor(this._nlpService);
-
-Future<String> processCommand(String input) async {
-  final intent = await _nlpService.analyzeIntent(input);
-  final entities = _nlpService.extractEntities(input);
-
-  // Weather specific handling
-  if (intent == CommandIntent.weather) {
-      final location = entities['location'] ?? 'current location';
-      return "Let me check the current weather in $location for you. I'll have real-time weather data integration soon!";
-  }
-    
-  // Default to conversation
-  return await _handleConversation(input);
+// Command types enumeration
+enum CommandType {
+  SEND_MESSAGE,
+  GET_RESPONSE,
+  // Add more command types as needed
 }
 
-  Future<String> _handleWeatherCommand(Map<String, dynamic> entities) async {
-    return "I'll check the weather for you. This feature will be implemented soon!";
+class CommandProcessor {
+  final NLPService nlpService;
+
+  CommandProcessor(this.nlpService);
+
+  Future<String> processCommand(String input) async {
+    print("Processing command: $input"); // Debugging output
+
+    // Determine command type
+    CommandType? commandType;
+
+    if (input.startsWith('/send ')) {
+      commandType = CommandType.SEND_MESSAGE;
+    } else if (input.startsWith('/get ')) {
+      commandType = CommandType.GET_RESPONSE;
+    }
+
+    // Process based on command type
+    try {
+      switch (commandType) {
+        case CommandType.SEND_MESSAGE:
+          print("Detected SEND_MESSAGE command."); // Debugging output
+          return await _handleSendMessage(
+              input.substring(6)); // Extract message
+        case CommandType.GET_RESPONSE:
+          print("Detected GET_RESPONSE command."); // Debugging output
+          return await _handleGetResponse(input.substring(6)); // Extract query
+        default:
+          print("Unknown command: $input"); // Debugging output
+          return await _handleConversation(input); // Handle as a conversation
+      }
+    } catch (e) {
+      print("Error processing command: $e"); // Log the error
+      return "I'm currently unable to process your request, please try again.";
+    }
   }
 
-  Future<String> _handleMusicCommand(Map<String, dynamic> entities) async {
-    return "I'll play some music for you. This feature will be implemented soon!";
+  // Handle sending messages
+  Future<String> _handleSendMessage(String message) async {
+    try {
+      // Integrate with message handler provider
+      // Example: ref.read(messageHandlerProvider.notifier).processUserMessage(message);
+      return 'Sending message: $message'; // Placeholder for actual implementation
+    } catch (e) {
+      return 'Error sending message: $e';
+    }
   }
 
-  Future<String> _handleReminderCommand(Map<String, dynamic> entities) async {
-    return "I'll set a reminder for you. This feature will be implemented soon!";
+  // Handle getting responses
+  Future<String> _handleGetResponse(String query) async {
+    try {
+      // Integrate with API to get response
+      return 'Getting response for query: $query'; // Placeholder for actual implementation
+    } catch (e) {
+      return 'Error getting response: $e';
+    }
   }
 
-  Future<String> _handleSearchCommand(String query) async {
-    return "I'll search that for you. This feature will be implemented soon!";
-  }
-
+  // Default to conversation
   Future<String> _handleConversation(String input) async {
     return "I understand you're trying to have a conversation. I'm learning to be more interactive!";
   }

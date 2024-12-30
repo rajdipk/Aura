@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/home/chat_screen.dart';
 import 'core/theme/theme_provider.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  runApp(
-    const ProviderScope(
-      child: AuraAssistant(),
-    ),
-  );
+  await dotenv.load();  // Will look for .env by default
+  runApp(const ProviderScope(child: AuraAssistant()));
 }
-
 class AuraAssistant extends ConsumerWidget {
   const AuraAssistant({super.key});
 
@@ -27,7 +22,7 @@ class AuraAssistant extends ConsumerWidget {
       home: const ChatScreen(),
       builder: (context, child) {
         return ScrollConfiguration(
-          behavior: ScrollBehavior().copyWith(
+          behavior: const ScrollBehavior().copyWith(
             physics: const BouncingScrollPhysics(),
           ),
           child: child!,

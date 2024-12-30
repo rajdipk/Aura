@@ -12,7 +12,7 @@ class AppTheme {
       secondary: _primaryLight.withOpacity(0.8),
       surface: Colors.white,
     ),
-    fontFamily: 'NotoSans',
+    fontFamily: 'Roboto',
     textTheme: const TextTheme(
       displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
       displayMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),

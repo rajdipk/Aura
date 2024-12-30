@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
+import '../constants/api_constants.dart';
+
 class AiService {
   final GenerativeModel _model;
 
@@ -11,19 +13,20 @@ class AiService {
         );
 
   Future<String> generateResponse(String prompt) async {
-    const systemPrompt = "You are Aura, a helpful AI assistant.Like JARVIS"
-                        "Always respond naturally and keep responses concise. "
-                        "Never mention being Gemini or Google AI.";
-    final content = [
-      Content.text(systemPrompt),
-      Content.text(prompt)
-    ];
-    final response = await _model.generateContent(content);
-    return response.text ?? 'I could not generate a response';
-  }
-}
-
-final aiServiceProvider = Provider((ref) {
-  const apiKey = String.fromEnvironment('GOOGLE_API_KEY'); // Replace with your API key
-  return AiService(apiKey);
-});
+    try {
+      final content = [
+        Content.text('You are Aura, a helpful AI assistant like JARVIS. '
+            'Always respond naturally and keep responses concise. '
+            'Never mention being Gemini or Google AI.'),
+        Content.text(prompt)
+      ];
+    
+      final response = await _model.generateContent(content);
+      return response.text ?? 'I could not generate a response';
+    } catch (e) {
+      return 'I encountered an error processing your request';
+    }
+  }}
+  final aiServiceProvider = Provider((ref) {
+    return AiService(ApiConstants.googleApiKey);
+  });
