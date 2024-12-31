@@ -1,6 +1,10 @@
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_provider.dart';
+import '../models/formatted_message.dart';
 import '../models/message.dart';
 import '../text_interface/message_handler.dart';
 import '../voice_interface/voice_service.dart';
@@ -20,20 +24,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FlutterTts flutterTts = FlutterTts();
-  final FocusNode _focusNode = FocusNode();
+  late FocusNode _focusNode = FocusNode();
   late AnimationController _fadeController;
   bool _isInputLocked = false;
-
+  bool _isSpeaking = false;
+  Message? _currentlySpokenMessage;
+  bool _isInputFocused = false;
 
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode();
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
     _initTts();
-    _focusNode.addListener(_handleFocusChange);
+    if (!kIsWeb) {
+      _focusNode.addListener(_handleFocusChange);
+    }
   }
 
   @override
@@ -48,11 +57,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _handleFocusChange() {
-    if (_focusNode.hasFocus) {
-      // Handle focus gained (optional for visual cues or actions)
-    } else {
-      // Handle focus lost (optional for cleanup)
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _isInputFocused = _focusNode.hasFocus;
+        });
+        if (_isInputFocused) {
+          _scrollToBottom();
+        }
+      }
+    });
   }
 
   Future<void> _initTts() async {
@@ -64,31 +78,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(messageHandlerProvider);
-    final commandProcessor = ref.watch(commandProcessorProvider);
     final voiceService = ref.watch(voiceServiceProvider);
     final theme = ref.watch(themeProvider);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        title: const Text(
-          'Aura',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          AnimatedBuilder(
-            animation: _fadeController,
-            builder: (context, child) {
-              return IconButton(
+    return FocusScope(
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Scaffold(
+          extendBodyBehindAppBar: true,
+          appBar: AppBar(
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            flexibleSpace: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+            title: Text(
+              'Aura',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                foreground: Paint()
+                  ..shader = LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.secondary
+                    ],
+                  ).createShader(const Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+                onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
+              ),
+              IconButton(
                 icon: Icon(
                   voiceService.isListening ? Icons.mic : Icons.mic_none,
                   color: voiceService.isListening
@@ -96,75 +123,102 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       : null,
                 ),
                 onPressed: _handleVoiceInput,
-              );
-            },
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(8.0),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                return _ChatBubble(
-                  message: messages[index],
-                  onTap: () => _speakMessage(messages[index].text),
-                );
-              },
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.colorScheme.surface,
+                  theme.colorScheme.surface.withOpacity(0.8),
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: messages.isEmpty
+                      ? const Center(
+                          child: Text('No messages yet. Start chatting!'))
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.only(
+                              top: 100, left: 8, right: 8, bottom: 8),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            if (index == messages.length - 1 &&
+                                _isInputLocked) {
+                              return const Center(
+                                  child: CircularProgressIndicator());
+                            }
+                            return _ChatBubble(
+                              message: messages[index],
+                              onTap: () => _speakMessage(messages[index]),
+                              isSpeaking: _isSpeaking &&
+                                  messages[index] == _currentlySpokenMessage,
+                            );
+                          },
+                        ),
+                ),
+                _buildInputArea(),
+              ],
             ),
           ),
-          _buildInputArea(),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildInputArea() {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, -1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _textController,
-                focusNode: _focusNode,
-                enabled: !_isInputLocked, // This controls the input lock
-                decoration: InputDecoration(
-                  hintText: 'Type a message...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25.0),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
-                  ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, -2),
+            blurRadius: 4,
+            color: Colors.black.withOpacity(0.1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _textController,
+              focusNode: _focusNode,
+              decoration: InputDecoration(
+                hintText: 'Type a message...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
                 ),
-                onFieldSubmitted: _handleSubmitted,
+                filled: true,
+                fillColor: _isInputFocused
+                    ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                    : Theme.of(context).colorScheme.surface,
               ),
-            ),            const SizedBox(width: 8.0),
-            IconButton(
-              icon: const Icon(Icons.send),
-              onPressed: () => _handleSubmitted(_textController.text),
+              onSubmitted: _handleSubmitted,
+              onTap: () {
+                setState(() {
+                  _isInputFocused = true;
+                });
+                _scrollToBottom();
+              },
+              enabled: !_isInputLocked,
             ),
-          ],
-        ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.send),
+            onPressed: _isInputLocked
+                ? null
+                : () => _handleSubmitted(_textController.text),
+          ),
+        ],
       ),
     );
   }
@@ -173,13 +227,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final voiceService = ref.read(voiceServiceProvider);
     if (voiceService.isListening) {
       setState(() {
-        _isInputLocked = false; // Unlock when voice input stops
+        _isInputLocked = false;
       });
       _fadeController.reverse();
       voiceService.stopListening();
     } else {
       setState(() {
-        _isInputLocked = true; // Lock when voice input starts
+        _isInputLocked = true;
       });
 
       if (_focusNode.hasFocus) {
@@ -194,16 +248,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           Future.delayed(const Duration(milliseconds: 150), () {
             if (mounted) {
               setState(() {
-                _isInputLocked = false; // Unlock when voice input completes
+                _isInputLocked = false;
               });
               _focusNode.requestFocus();
             }
           });
         },
+        onError: (error) {
+          setState(() {
+            _isInputLocked = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Voice recognition failed. Please try again.')),
+          );
+        },
       );
     }
   }
-
 
   Future<void> _handleSubmitted(String text) async {
     if (text.trim().isEmpty) return;
@@ -213,31 +275,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     });
 
     _textController.clear();
-    _focusNode.unfocus();
+    FocusScope.of(context).unfocus();
 
-    if (text.startsWith('/')) {
-      final commandProcessor = ref.read(commandProcessorProvider);
-      final response = await commandProcessor.processCommand(text);
-      ref.read(messageHandlerProvider.notifier).processUserMessage(response);
-    } else {
-      ref.read(messageHandlerProvider.notifier).processUserMessage(text);
-    }
-
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-        Future.delayed(const Duration(milliseconds: 50), () {
-          if (mounted) {
-            setState(() {
-              _isInputLocked = false; // Unlock input after processing
-            });
-            FocusScope.of(context).requestFocus(_focusNode);
-          }
+    try {
+      if (text.startsWith('/')) {
+        final commandProcessor = ref.read(commandProcessorProvider);
+        final response = await commandProcessor.processCommand(text);
+        await ref
+            .read(messageHandlerProvider.notifier)
+            .processUserMessage(response);
+      } else {
+        await ref
+            .read(messageHandlerProvider.notifier)
+            .processUserMessage(text);
+      }
+    } catch (e) {
+      debugPrint('Error processing message: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+              'An error occurred while processing your message. Please try again.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      ref
+          .read(messageHandlerProvider.notifier)
+          .processUserMessage('Sorry, an error occurred. Please try again.');
+    } finally {
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Future.delayed(const Duration(milliseconds: 50), () async {
+            if (mounted) {
+              setState(() {
+                _isInputLocked = false;
+              });
+              _scrollToBottom();
+              await Future.delayed(const Duration(milliseconds: 50));
+              FocusScope.of(context).requestFocus(_focusNode);
+            }
+          });
         });
-      });
+      }
     }
   }
-  void _scrollToBottom() {
+
+ void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -249,22 +331,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     });
   }
 
-  Future<void> _speakMessage(String text) async {
-    await flutterTts.speak(text);
+  Future<void> _speakMessage(Message message) async {
+    if (_isSpeaking) {
+      await flutterTts.stop();
+      setState(() {
+        _isSpeaking = false;
+        _currentlySpokenMessage = null;
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _isSpeaking = true;
+        _currentlySpokenMessage = message;
+      });
+      await flutterTts.setLanguage("en-US");
+      await flutterTts.setPitch(1.0);
+      await flutterTts.setSpeechRate(2);
+      var result = await flutterTts.speak(message.text);
+      if (result == 1) {
+        debugPrint('Message spoken successfully');
+      } else {
+        debugPrint('Error speaking message');
+      }
+    } catch (e) {
+      debugPrint('Error in text-to-speech: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Failed to speak the message. Please try again.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isSpeaking = false;
+        _currentlySpokenMessage = null;
+      });
+    }
   }
 }
 
 class _ChatBubble extends StatelessWidget {
   final Message message;
   final VoidCallback onTap;
+  final bool isSpeaking;
 
   const _ChatBubble({
     required this.message,
     required this.onTap,
+    this.isSpeaking = false,
   });
-  
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isUserMessage = message.isUser;
 
     return GestureDetector(
@@ -272,9 +393,7 @@ class _ChatBubble extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4.0),
         alignment: isUserMessage ? Alignment.centerRight : Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment:
-              isUserMessage ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        child: Stack(
           children: [
             Container(
               padding: const EdgeInsets.all(12.0),
@@ -283,8 +402,8 @@ class _ChatBubble extends StatelessWidget {
               ),
               decoration: BoxDecoration(
                 color: isUserMessage
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.8)
-                    : Theme.of(context).colorScheme.surface,
+                    ? theme.colorScheme.primary.withOpacity(0.8)
+                    : theme.colorScheme.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(12.0),
                   topRight: const Radius.circular(12.0),
@@ -294,31 +413,40 @@ class _ChatBubble extends StatelessWidget {
                       isUserMessage ? Radius.zero : const Radius.circular(12.0),
                 ),
               ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: isUserMessage
-                      ? Theme.of(context).colorScheme.onPrimary
-                      : Theme.of(context).colorScheme.onSurface,
-                  fontSize: 16.0,
-                ),
+              child: FormattedMessage(
+                text: message.text,
+                textColor: isUserMessage
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurface,
+                fontSize: 16.0,
               ),
             ),
             if (!isUserMessage && message.isAnimated)
-              Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: AnimatedTextKit(
-                  animatedTexts: [
-                    TypewriterAnimatedText(
-                      message.text,
-                      textStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontSize: 16.0,
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: AnimatedTextKit(
+                    animatedTexts: [
+                      TypewriterAnimatedText(
+                        message.text,
+                        textStyle: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 16.0,
+                        ),
+                        speed: const Duration(milliseconds: 50),
                       ),
-                      speed: const Duration(milliseconds: 50),
-                    ),
-                  ],
-                  isRepeatingAnimation: false,
+                    ],
+                    isRepeatingAnimation: false,
+                  ),
+                ),
+              ),
+            if (isSpeaking)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Icon(
+                  Icons.volume_up,
+                  color: theme.colorScheme.secondary,
                 ),
               ),
           ],

@@ -16,7 +16,7 @@ class VoiceService {
 
   Future<void> startListening({
     required Function(String) onResult,
-    required Function() onListenComplete,
+    required Function() onListenComplete, required Null Function(dynamic error) onError,
   }) async {
     await _initializeSpeech();
     if (_isInitialized) {

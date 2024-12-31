@@ -1,7 +1,7 @@
+import 'package:aura_assistant/features/home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'features/home/chat_screen.dart';
 import 'core/theme/theme_provider.dart';
 
 void main() async {
@@ -19,7 +19,7 @@ class AuraAssistant extends ConsumerWidget {
       title: 'Aura Assistant',
       debugShowCheckedModeBanner: false,
       theme: theme,
-      home: const ChatScreen(),
+      home: const HomeScreen(),
       builder: (context, child) {
         return ScrollConfiguration(
           behavior: const ScrollBehavior().copyWith(
