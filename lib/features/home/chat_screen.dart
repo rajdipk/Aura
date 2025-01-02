@@ -1,7 +1,10 @@
+//chat_screen.dart
+
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_provider.dart';
 import '../models/formatted_message.dart';
@@ -150,10 +153,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           itemCount: messages.length,
                           itemBuilder: (context, index) {
                             if (index == messages.length - 1 &&
-                                _isInputLocked) {
-                              return const Center(
-                                  child: CircularProgressIndicator());
-                            }
+                                _isInputLocked) {}
                             return _ChatBubble(
                               message: messages[index],
                               onTap: () => _speakMessage(messages[index]),
@@ -213,7 +213,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.send),
+            icon:
+                Icon(Icons.send, color: Theme.of(context).colorScheme.primary),
             onPressed: _isInputLocked
                 ? null
                 : () => _handleSubmitted(_textController.text),
@@ -319,7 +320,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
- void _scrollToBottom() {
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -372,7 +373,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 }
 
-class _ChatBubble extends StatelessWidget {
+class _ChatBubble extends StatefulWidget {
   final Message message;
   final VoidCallback onTap;
   final bool isSpeaking;
@@ -384,12 +385,27 @@ class _ChatBubble extends StatelessWidget {
   });
 
   @override
+  __ChatBubbleState createState() => __ChatBubbleState();
+}
+
+class __ChatBubbleState extends State<_ChatBubble> {
+  bool _isAnimationFinished = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isUserMessage = message.isUser;
+    final isUserMessage = widget.message.isUser;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
+      onLongPress: () {
+        if (!isUserMessage) {
+          Clipboard.setData(ClipboardData(text: widget.message.text));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Message copied to clipboard')),
+          );
+        }
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4.0),
         alignment: isUserMessage ? Alignment.centerRight : Alignment.centerLeft,
@@ -403,7 +419,7 @@ class _ChatBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isUserMessage
                     ? theme.colorScheme.primary.withOpacity(0.8)
-                    : theme.colorScheme.surface,
+                    : theme.colorScheme.primary,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(12.0),
                   topRight: const Radius.circular(12.0),
@@ -412,41 +428,80 @@ class _ChatBubble extends StatelessWidget {
                   bottomRight:
                       isUserMessage ? Radius.zero : const Radius.circular(12.0),
                 ),
-              ),
-              child: FormattedMessage(
-                text: message.text,
-                textColor: isUserMessage
-                    ? theme.colorScheme.onPrimary
-                    : theme.colorScheme.onSurface,
-                fontSize: 16.0,
-              ),
-            ),
-            if (!isUserMessage && message.isAnimated)
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: AnimatedTextKit(
-                    animatedTexts: [
-                      TypewriterAnimatedText(
-                        message.text,
-                        textStyle: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontSize: 16.0,
-                        ),
-                        speed: const Duration(milliseconds: 50),
-                      ),
-                    ],
-                    isRepeatingAnimation: false,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withAlpha((0.1 * 255).round()),
+                    blurRadius: 4,
+                    offset: const Offset(2, 2),
                   ),
-                ),
+                ],
               ),
-            if (isSpeaking)
-              Positioned(
+              child: isUserMessage
+                  ? FormattedMessage(
+                      text: widget.message.text,
+                      textColor: theme.colorScheme.onPrimary,
+                      fontSize: 16.0,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!_isAnimationFinished)
+                          AnimatedTextKit(
+                            animatedTexts: [
+                              TypewriterAnimatedText(
+                                widget.message.text,
+                                textStyle: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: 16.0,
+                                ),
+                                speed: const Duration(milliseconds: 50),
+                              ),
+                            ],
+                            isRepeatingAnimation: false,
+                            totalRepeatCount: 1,
+                            onFinished: () {
+                              setState(() {
+                                _isAnimationFinished = true;
+                              });
+                            },
+                          )
+                        else
+                          FormattedMessage(
+                            text: widget.message.text,
+                            textColor: theme.colorScheme.onSurface,
+                            fontSize: 16.0,
+                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 16),
+                              onPressed: () {
+                                Clipboard.setData(
+                                    ClipboardData(text: widget.message.text));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('Message copied to clipboard')),
+                                );
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.volume_up, size: 16),
+                              onPressed: widget.onTap,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+            ),
+            if (widget.isSpeaking)
+              const Positioned(
                 top: 4,
                 right: 4,
                 child: Icon(
                   Icons.volume_up,
-                  color: theme.colorScheme.secondary,
+                  size: 16,
                 ),
               ),
           ],

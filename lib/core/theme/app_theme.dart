@@ -1,15 +1,20 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const _primaryLight = Color(0xFF6750A4);
-  static const _primaryDark = Color(0xFFD0BCFF);
+  // Using teal shades instead of custom colors
+  static final _primaryLight =
+      Colors.teal.shade600; // Darker teal for light theme
+  static final _primaryDark =
+      Colors.teal.shade200; // Lighter teal for dark theme
 
   static final lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     colorScheme: ColorScheme.light(
       primary: _primaryLight,
-      secondary: _primaryLight.withOpacity(0.8),
+      secondary: Colors.teal.shade400, // Slightly lighter teal for secondary
       surface: Colors.white,
     ),
     fontFamily: 'Roboto',
@@ -26,7 +31,7 @@ class AppTheme {
     brightness: Brightness.dark,
     colorScheme: ColorScheme.dark(
       primary: _primaryDark,
-      secondary: _primaryDark.withOpacity(0.8),
+      secondary: Colors.teal.shade300, // Lighter teal for dark theme secondary
       surface: const Color(0xFF1C1B1F),
     ),
     fontFamily: 'NotoSans',
