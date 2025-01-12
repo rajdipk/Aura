@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.aura.aura_assistant"
+    namespace = "com.example.aura_assistant"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

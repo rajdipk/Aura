@@ -59,3 +59,4 @@ build/
 # API Keys and Secrets
 lib/core/constants/api_constants.dart
 .env
+.codegpt

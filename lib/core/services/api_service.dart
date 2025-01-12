@@ -1,44 +1,16 @@
-import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ApiService {
-  late final Dio _dio;
+  Future<Map<String, dynamic>> getRequest(String url) async {
+    final response = await http.get(Uri.parse(url));
 
-  ApiService() {
-    _dio = Dio(BaseOptions(
-      baseUrl: 'https://api.aura.com',
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 3),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    ));
-
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-    ));
-  }
-
-  Future<Response> get(String path, {Map<String, dynamic>? params}) async {
-    try {
-      return await _dio.get(path, queryParameters: params);
-    } catch (e) {
-      throw _handleError(e);
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load data');
     }
-  }
-
-  Future<Response> post(String path, {dynamic data}) async {
-    try {
-      return await _dio.post(path, data: data);
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  Exception _handleError(dynamic error) {
-    return Exception('API Error: $error');
   }
 }
 

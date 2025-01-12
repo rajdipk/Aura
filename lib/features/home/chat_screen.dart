@@ -1,5 +1,7 @@
 //chat_screen.dart
 
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -269,52 +271,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _handleSubmitted(String text) async {
+    print("\n=== ChatScreen: Handling Submitted Text ===");
+    print("Text received: '$text'");
+
     if (text.trim().isEmpty) return;
 
     setState(() {
-      _isInputLocked = true; // Lock input when processing starts
+      _isInputLocked = true;
     });
 
     _textController.clear();
     FocusScope.of(context).unfocus();
 
     try {
-      if (text.startsWith('/')) {
-        final commandProcessor = ref.read(commandProcessorProvider);
-        final response = await commandProcessor.processCommand(text);
-        await ref
-            .read(messageHandlerProvider.notifier)
-            .processUserMessage(response);
-      } else {
-        await ref
-            .read(messageHandlerProvider.notifier)
-            .processUserMessage(text);
-      }
-    } catch (e) {
-      debugPrint('Error processing message: $e');
+      final commandProcessor = ref.read(commandProcessorProvider);
+      print("Processing text through CommandProcessor...");
+      final response = await commandProcessor.processCommand(text);
+      print("Command processor response: '$response'");
+      
+      await ref
+          .read(messageHandlerProvider.notifier)
+          .processUserMessage(response);
+      
+    } catch (e, stackTrace) {
+      print("Error in _handleSubmitted: $e");
+      print("Stack trace: $stackTrace");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-              'An error occurred while processing your message. Please try again.'),
+          content: Text('Error: $e'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
-      ref
-          .read(messageHandlerProvider.notifier)
-          .processUserMessage('Sorry, an error occurred. Please try again.');
     } finally {
       if (mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Future.delayed(const Duration(milliseconds: 50), () async {
-            if (mounted) {
-              setState(() {
-                _isInputLocked = false;
-              });
-              _scrollToBottom();
-              await Future.delayed(const Duration(milliseconds: 50));
-              FocusScope.of(context).requestFocus(_focusNode);
-            }
-          });
+        setState(() {
+          _isInputLocked = false;
         });
       }
     }
@@ -348,8 +339,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _currentlySpokenMessage = message;
       });
       await flutterTts.setLanguage("en-US");
-      await flutterTts.setPitch(1.0);
-      await flutterTts.setSpeechRate(2);
+      await flutterTts.setPitch(0.9); // Slightly lower pitch for a deeper tone.
+      await flutterTts.setSpeechRate(0.85); // Slower rate for clarity.
       var result = await flutterTts.speak(message.text);
       if (result == 1) {
         debugPrint('Message spoken successfully');

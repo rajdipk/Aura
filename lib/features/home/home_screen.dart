@@ -1,5 +1,7 @@
 //home_screen.dart
 
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -73,9 +75,7 @@ class _AnimatedTitleState extends State<AnimatedTitle> {
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
         child: Text(
-          _showFullName
-              ? 'Advanced Universal Responsive Assistant'
-              : 'Aura',
+          _showFullName ? 'Advanced Universal Responsive Assistant' : 'Aura',
           key: ValueKey(_showFullName),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
@@ -300,7 +300,7 @@ class HomeScreen extends ConsumerWidget {
   ) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: InkWell(
         onTap: onTap,
@@ -402,50 +402,53 @@ class HomeScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, DateTime selectedDay) {
     final TextEditingController titleController = TextEditingController();
 
-    Navigator.of(context).push(
-      DialogRoute<void>(
-        context: context,
-        builder: (BuildContext context) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Add Event'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: InputDecoration(
-                    hintText: 'Event Title',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+    // Add a small delay before showing the dialog to ensure the input element is properly focused
+    Future.delayed(const Duration(milliseconds: 100), () {
+      Navigator.of(context).push(
+        DialogRoute<void>(
+          context: context,
+          builder: (BuildContext context) => StatefulBuilder(
+            builder: (context, setState) => AlertDialog(
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Add Event'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      hintText: 'Event Title',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
+                    autofocus: true, // Ensure the text field is properly focused
                   ),
-                  autofocus: true, // Ensure the text field is properly focused
+                ],
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                ElevatedButton(
+                  child: const Text('Add'),
+                  onPressed: () {
+                    if (titleController.text.isNotEmpty) {
+                      ref.read(eventsProvider.notifier).addEvent(
+                            Event(titleController.text, selectedDay),
+                          );
+                      Navigator.of(context).pop();
+                    }
+                  },
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                child: const Text('Cancel'),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              ElevatedButton(
-                child: const Text('Add'),
-                onPressed: () {
-                  if (titleController.text.isNotEmpty) {
-                    ref.read(eventsProvider.notifier).addEvent(
-                          Event(titleController.text, selectedDay),
-                        );
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-            ],
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
